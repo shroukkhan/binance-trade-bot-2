@@ -2,33 +2,35 @@ import json
 import os
 import time
 from collections import namedtuple
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
 
 from socketio import Client
 from socketio.exceptions import ConnectionError as SocketIOConnectionError
-from sqlalchemy import create_engine, func, insert, select, update
+from sqlalchemy import bindparam, create_engine, func, insert, select, update
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
+
+from binance_trade_bot.postpone import heavy_call
+from binance_trade_bot.ratios import CoinStub, RatiosManager
 
 from .config import Config
 from .logger import Logger
 from .models import *  # pylint: disable=wildcard-import
 
-LogScout = namedtuple("LogScout", ["pair", "target_ratio", "coin_price", "optional_coin_price"])
+LogScout = namedtuple("LogScout", ["pair_id", "ratio_diff", "target_ratio", "coin_price", "optional_coin_price"])
 
 
 class Database:
-    def __init__(self, logger: Logger, config: Config, uri="sqlite:///data/crypto_trading.db", isTest=False):
+    def __init__(self, logger: Logger, config: Config, uri="sqlite:///data/crypto_trading.db"):
         self.logger = logger
         self.config = config
         self.engine = create_engine(uri)
         self.session_factory = scoped_session(sessionmaker(bind=self.engine))
+        self.ratios_manager: Optional[RatiosManager] = None
         self.socketio_client = Client()
-        self.isTest=isTest
 
     def socketio_connect(self):
-        if self.isTest:    return False
         if self.socketio_client.connected and self.socketio_client.namespaces:
             return True
         try:
@@ -49,6 +51,11 @@ class Database:
         yield session
         session.commit()
         session.close()
+
+    def manage_session(self, session=None):
+        if session is None:
+            return self.db_session()
+        return nullcontext(session)
 
     def set_coins(self, symbols: List[str]):
         session: Session
@@ -71,15 +78,24 @@ class Database:
                 else:
                     coin.enabled = True
 
+        CoinStub.reset()
+
         # For all the combinations of coins in the database, add a pair to the database
         with self.db_session() as session:
-            coins: List[Coin] = session.query(Coin).filter(Coin.enabled).all()
+            coins: List[Coin] = session.query(Coin).filter(Coin.enabled).order_by(Coin.symbol).all()
+            for coin in coins:
+                CoinStub.create(coin.symbol)
             for from_coin in coins:
                 for to_coin in coins:
                     if from_coin != to_coin:
                         pair = session.query(Pair).filter(Pair.from_coin == from_coin, Pair.to_coin == to_coin).first()
                         if pair is None:
                             session.add(Pair(from_coin, to_coin))
+
+        # Fill lookup table for id discovery
+        with self.db_session() as session:
+            pairs = session.query(Pair).filter(Pair.enabled.is_(True)).all()
+            self.ratios_manager = RatiosManager(pairs)
 
     def get_coins(self, only_enabled=True) -> List[Coin]:
         session: Session
@@ -129,27 +145,7 @@ class Database:
             session.expunge(pair)
             return pair
 
-    def get_pairs_from(self, from_coin: Union[Coin, str], only_enabled=True) -> List[Pair]:
-        from_coin = self.get_coin(from_coin)
-        session: Session
-        with self.db_session() as session:
-            pairs = session.query(Pair).filter(Pair.from_coin == from_coin)
-            if only_enabled:
-                pairs = pairs.filter(Pair.enabled.is_(True))
-            pairs = pairs.all()
-            session.expunge_all()
-            return pairs
-
-    def get_pairs(self, only_enabled=True) -> List[Pair]:
-        session: Session
-        with self.db_session() as session:
-            pairs = session.query(Pair)
-            if only_enabled:
-                pairs = pairs.filter(Pair.enabled.is_(True))
-            pairs = pairs.all()
-            session.expunge_all()
-            return pairs
-
+    @heavy_call
     def batch_log_scout(self, logs: List[LogScout]):
         session: Session
         with self.db_session() as session:
@@ -158,7 +154,8 @@ class Database:
                 insert(ScoutHistory),
                 [
                     {
-                        "pair_id": ls.pair.id,
+                        "pair_id": ls.pair_id,
+                        "ratio_diff": ls.ratio_diff,
                         "target_ratio": ls.target_ratio,
                         "current_coin_price": ls.coin_price,
                         "other_coin_price": ls.optional_coin_price,
@@ -167,20 +164,8 @@ class Database:
                     for ls in logs
                 ],
             )
-
-    def log_scout(
-        self,
-        pair: Pair,
-        target_ratio: float,
-        current_coin_price: float,
-        other_coin_price: float,
-    ):
-        session: Session
-        with self.db_session() as session:
-            pair = session.merge(pair)
-            sh = ScoutHistory(pair, target_ratio, current_coin_price, other_coin_price)
-            session.add(sh)
-            self.send_update(sh)
+            # need to repair send_update here for log scouts
+            # self.send_update(sh)
 
     def prune_scout_history(self):
         time_diff = datetime.now() - timedelta(hours=self.config.SCOUT_HISTORY_PRUNE_TIME)
@@ -189,14 +174,78 @@ class Database:
             session.query(ScoutHistory).filter(ScoutHistory.datetime < time_diff).delete()
 
     def prune_value_history(self):
+        def _datetime_id_query(dt_format):
+            dt_column = func.strftime(dt_format, CoinValue.datetime)
+
+            grouped = select(CoinValue, func.max(CoinValue.datetime), dt_column).group_by(
+                CoinValue.coin_id, CoinValue, dt_column
+            )
+
+            return select(grouped.c.id.label("id")).select_from(grouped)
+
+        def _update_query(datetime_query, interval):
+            return (
+                update(CoinValue)
+                .where(CoinValue.id.in_(datetime_query))
+                .values(interval=interval)
+                .execution_options(synchronize_session="fetch")
+            )
+
+        # Sets the first entry for each coin for each hour as 'hourly'
+        hourly_update_query = _update_query(_datetime_id_query("%H"), Interval.HOURLY)
+
+        # Sets the first entry for each coin for each month as 'weekly'
+        # (Sunday is the start of the week)
+        weekly_update_query = _update_query(
+            _datetime_id_query("%Y-%W"),
+            Interval.WEEKLY,
+        )
+
+        # Sets the first entry for each coin for each day as 'daily'
+        daily_update_query = _update_query(
+            _datetime_id_query("%Y-%j"),
+            Interval.DAILY,
+        )
+
         session: Session
         with self.db_session() as session:
-            session.query(CoinValue).delete()
-            
+            session.execute(hourly_update_query)
+            session.execute(daily_update_query)
+            session.execute(weekly_update_query)
+
+            # Early commit to make sure the delete statements work properly.
+            session.commit()
+
+            # The last 24 hours worth of minutely entries will be kept, so
+            # count(coins) * 1440 entries
+            time_diff = datetime.now() - timedelta(hours=24)
+            session.query(CoinValue).filter(
+                CoinValue.interval == Interval.MINUTELY, CoinValue.datetime < time_diff
+            ).delete()
+
+            # The last 28 days worth of hourly entries will be kept, so count(coins) * 672 entries
+            time_diff = datetime.now() - timedelta(days=28)
+            session.query(CoinValue).filter(
+                CoinValue.interval == Interval.HOURLY, CoinValue.datetime < time_diff
+            ).delete()
+
+            # The last years worth of daily entries will be kept, so count(coins) * 365 entries
+            time_diff = datetime.now() - timedelta(days=365)
+            session.query(CoinValue).filter(
+                CoinValue.interval == Interval.DAILY, CoinValue.datetime < time_diff
+            ).delete()
+
+            # All weekly entries will be kept forever
+
     def create_database(self):
         Base.metadata.create_all(self.engine)
+        try:
+            with self.db_session() as session:
+                session.execute("ALTER TABLE scout_history ADD COLUMN ratio_diff float;")
+        except:
+            pass
 
-    def start_trade_log(self, from_coin: Coin, to_coin: Coin, selling: bool):
+    def start_trade_log(self, from_coin: str, to_coin: str, selling: bool):
         return TradeLog(self, from_coin, to_coin, selling)
 
     def send_update(self, model):
@@ -239,6 +288,28 @@ class Database:
             os.rename(".current_coin_table", ".current_coin_table.old")
             self.logger.info(".current_coin_table renamed to .current_coin_table.old - " "You can now delete this file")
 
+    @heavy_call
+    def commit_ratios(self):
+        dirty_cells = self.ratios_manager.get_dirty()
+
+        if len(dirty_cells) == 0:
+            return
+
+        pair_t = Pair.__table__
+        stmt = pair_t.update().where(pair_t.c.id == bindparam("pair_id")).values(ratio=bindparam("pair_ratio"))
+        with self.db_session() as session:
+            session.execute(
+                stmt,
+                [
+                    {
+                        "pair_id": self.ratios_manager.get_pair_id(from_idx, to_idx),
+                        "pair_ratio": self.ratios_manager.get(from_idx, to_idx),
+                    }
+                    for from_idx, to_idx in dirty_cells
+                ],
+            )
+        self.ratios_manager.commit()
+
     def batch_update_coin_values(self, cv_batch: List[CoinValue]):
         session: Session
         with self.db_session() as session:
@@ -259,12 +330,12 @@ class Database:
 
 
 class TradeLog:
-    def __init__(self, db: Database, from_coin: Coin, to_coin: Coin, selling: bool):
+    def __init__(self, db: Database, from_coin: str, to_coin: str, selling: bool):
         self.db = db
         session: Session
         with self.db.db_session() as session:
-            from_coin = session.merge(from_coin)
-            to_coin = session.merge(to_coin)
+            # from_coin = session.merge(from_coin)
+            # to_coin = session.merge(to_coin)
             self.trade = Trade(from_coin, to_coin, selling)
             session.add(self.trade)
             # Flush so that SQLAlchemy fills in the id column

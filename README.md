@@ -32,16 +32,12 @@ The bot jumps between a configured set of coins on the condition that it does no
 
 ## Binance Setup
 
--   Create a [Binance account](https://accounts.binance.com/en/register?ref=DDA1SQA) (Includes my referral link, I'll be super grateful if you use it).
+-   Create a [Binance account](https://www.binance.com/en/register?ref=13222128) (Includes my referral link, I'll be super grateful if you use it).
 -   Enable Two-factor Authentication.
--   Create a new API key and whitelist your IP for it.
+-   Create a new API key.
 -   Get a cryptocurrency. If its symbol is not in the default list, add it.
 
 ## Tool Setup
-
-### Required Python version
-
-Currently Python 3.7 is the minimum required version.
 
 ### Install Python dependencies
 
@@ -59,22 +55,12 @@ Create a .cfg file named `user.cfg` based off `.user.cfg.example`, then add your
 -   **bridge** - Your bridge currency of choice. Notice that different bridges will allow different sets of supported coins. For example, there may be a Binance particular-coin/USDT pair but no particular-coin/BUSD pair.
 -   **tld** - 'com' or 'us', depending on your region. Default is 'com'.
 -   **hourToKeepScoutHistory** - Controls how many hours of scouting values are kept in the database. After the amount of time specified has passed, the information will be deleted.
--   **use_margin** - 'yes' to use scout_margin. 'no' to use scout_multiplier.
+-   **use_margin** - 'true' to use `scout_margin`. 'false' to use `scout_multiplier`.
 -   **scout_multiplier** - Controls the value by which the difference between the current state of coin ratios and previous state of ratios is multiplied. For bigger values, the bot will wait for bigger margins to arrive before making a trade.
 -   **scout_margin** - Minimum percentage coin gain per trade. 0.8 translates to a scout multiplier of 5 at 0.1% fee.
--   **trade_fee** - Controls trade fee for calculating profitable jumps. By default it doesn't have value: gets values through the binance api calls. Otherwise use float values for the fee. [Binance fee table for reference](https://www.binance.com/en/fee/schedule)
 -   **strategy** - The trading strategy to use. See [`binance_trade_bot/strategies`](binance_trade_bot/strategies/README.md) for more information
--   **enable_paper_trading** - (`True` or `False` default `False`) run bot with virtual wallet to check its performance without risking any money.
--   **buy_timeout/sell_timeout** - Controls how many minutes to wait before cancelling a limit order (buy/sell) and returning to "scout" mode. 0 means that the order will never be cancelled prematurely.
 -   **scout_sleep_time** - Controls how many seconds bot should wait between analysis of current prices. Since the bot now operates on websockets this value should be set to something low (like 1), the reasons to set it above 1 are when you observe high CPU usage by bot or you got api errors about requests weight limit.
--   **buy_order_type** - Controls the type of placed buy orders, types available: market, limit (default=limit)
--   **sell_order_type** - Controls the type of placed sell orders, types available: market, limit (default=market)
--   **buy_max_price_change/sell_max_price_change** - Controls how much price change in decimal percentage is accepted between calculation of ratios and trading.
--   **price_type** - Controls the type of prices used by the bot, types available: orderbook, ticker (default=orderbook). Please note that using the orderbook prices increase the CPU usage.
--   **accept_losses** - Needs to be set to true for highly risky and gamling strategies. Otherwise the bot wont start.
--   **auto_adjust_bnb_balance** - Controls the bot to auto buy BNB while there is no enough BNB balance in your account, to get the benifits of using BNB to pay the commisions. Default is false. Effective if you have enabled to [use BNB to pay for any fees on the Binance platform](https://www.binance.com/en/support/faq/115000583311-Using-BNB-to-Pay-for-Fees), reade more information [here](#paying-fees-with-bnb).
--   **auto_adjust_bnb_balance_rate** - The multiplying power of buying quantity of BNB compares to evaluated comission of the coming order, effective only if auto_adjust_bnb_balance is true. Default value is 3.
--   **allow_coin_merge** - Allow multiple_coins strategy to merge coins into one. It turned out that its more profitable if the strategy can merge the held coins into one. If you dont want this you may be safer for one falling coin but you also pay with potential gains. Default is true to ensure the behavior is like in the origin repo.
+-   **enable_paper_trading** - (`true` or `false` default `False`) run bot with virtual wallet to check its performance without risking any money.
 
 #### Environment Variables
 
@@ -87,18 +73,10 @@ BRIDGE_SYMBOL: USDT
 API_KEY: vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A
 API_SECRET_KEY: NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j
 SCOUT_MULTIPLIER: 5
-USE_MARGIN : no
-SCOUT_MARGIN : 0.8
 SCOUT_SLEEP_TIME: 1
 TLD: com
 STRATEGY: default
-BUY_TIMEOUT: 0
-SELL_TIMEOUT: 0
-BUY_ORDER_TYPE: limit
-SELL_ORDER_TYPE: market
-AUTO_ADJUST_BNB_BALANCE: false
-AUTO_ADJUST_BNB_BALANCE_RATE: 3
-ALLOW_COIN_MERGE: true
+ENABLE_PAPER_TRADING: False
 ```
 
 ### Paying Fees with BNB
@@ -129,16 +107,16 @@ Please remember that this is a fork. To maintain the security of your API key it
 
 ### Build and run locally
 1. Clone this git to a location of your choice: 
-`git clone https://github.com/tntwist/binance-trade-bot tntwist-binance-trade-bot`
+`git clone https://github.com/masaiasuose/binance-trade-bot masaiasuose-binance-trade-bot`
 2. Change to the directory:
-`cd tntwist-binance-trade-bot`
+`cd masaiasuose-binance-trade-bot`
 3. Build the container locally (this may take a few minutes depending on your hardware):
-`docker build . -t tntwist-binance-trade-bot`
-4. Follow the steps in [Create user configuration](#create-user-configuration) to ensure you have created a `user.cfg` file in the directory created in step 2. If you have already done this, continue to step 5. 
+`docker build . -t masaiasuose-binance-trade-bot`
+4. Follow the steps in [Create user configuration](#create-user-configuration) to ensure you have created a `user.cfg` file in the directory created in step 2. If you have already done this, continue to step 5.
 5. Run docker-compose up
 `docker-compose up`
 
-To update, repeat steps 1 through 5. These commands can also be added to a shell script to automate the process.
+To update, repeat steps 1 through 5. These commands above can also be added to a shell script to automate the process.
 
 ### If you only want to start the SQLite browser
 
@@ -146,9 +124,11 @@ To update, repeat steps 1 through 5. These commands can also be added to a shell
 docker-compose up -d sqlitebrowser
 ```
 
-## Backtesting
+## Bot-testing
 
-You can test the bot on historic data to see how it performs.
+You can test the bot on historic data with backtesting or with paper trading on live data to see how it performs. Backtesting is much faster but isn't as accurate as paper trading.
+
+### Backtesting
 
 ```shell
 python backtest.py
@@ -156,9 +136,17 @@ python backtest.py
 
 Feel free to modify that file to test and compare different settings and time periods
 
+### Papertrading
+
+You can enable paper trading via the `user.cfg` and change the starting amount to use with the following line in `crypto_trading.py`:
+
+```
+manager = BinanceAPIManager.create_manager_paper_trading(config, db, logger, {config.BRIDGE.symbol: 1_000.0})
+```
+
 ## Database warmup
 
-You can warmup your database with coins wich you might want to add later to your supported coin list. 
+You can warmup your database with coins wich you might want to add later to your supported coin list.
 This should prevent uncontrolled jumps when you add a new coin to your supported coin list.
 
 After the execution you should wait one or two trades of the bot before adding any new coin to your list.
@@ -181,6 +169,28 @@ If not provided the script will warmup all coins available for the bridge.
 
 ```shell
 python3 database_warmup.py -c 'ADA BTC ETH LTC'
+```
+
+## Showing the current ratio changes
+
+This fork is along with scout history also saving the current changes in coin ratios.
+Those ratios are used by the bot to determine whether a jump to an another coin will
+yield more amount of the coin compared to a previous holding of that coin.
+If you are using the [BTB-manager-telegram](https://github.com/lorcalhost/BTB-manager-telegram)
+(see below), then shown ratios (`Current ratios` and `Next coin` buttons) are
+actually computed again, and mainly, not so accurately (fixed fee value).
+
+You can use the `show_ratio_changes.py` script to show the latest values of ratio changes:
+
+```shell
+python3 show_ratio_changes.py
+```
+
+You can add it to custom scripts (`config/custom_scripts.json`) in
+[BTB-manager-telegram](https://github.com/lorcalhost/BTB-manager-telegram):
+
+```json
+"Show ratio changes": "python3 ../binance-trade-bot/show_ratio_changes.py"
 ```
 
 ## Developing
@@ -208,7 +218,7 @@ Fist of all, support the originator of this bot and buy him a coffee. ☕
 
 If you like my adjustments and you want to support me I would appreciate to get a coffee too. 😜
 
-<a href="https://www.buymeacoffee.com/tntwist" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+<a href="https://www.buymeacoffee.com/masaiasuose" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
 ## Join the Chat
 
