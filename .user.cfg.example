@@ -10,4 +10,4 @@ scout_multiplier=5
 scout_margin=0.8
 scout_sleep_time=1
 strategy=default
-enable_paper_trading=false
+enable_paper_trading=True

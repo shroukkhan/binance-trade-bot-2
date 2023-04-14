@@ -10,5 +10,6 @@ user.cfg
 .replit
 venv/
 crypto_trading.db
+testtest_cache.db
 apprise.yml
 .DS_Store

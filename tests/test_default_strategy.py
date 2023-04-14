@@ -1,22 +1,18 @@
+import datetime
+import os
+from typing import Dict
+
 import pytest
-
-import os, datetime
-from typing import Dict, List
-
 from binance.client import Client
 from sqlitedict import SqliteDict
 
-from binance_trade_bot.auto_trader import AutoTrader
 from binance_trade_bot.backtest import MockBinanceManager
-
 from binance_trade_bot.binance_stream_manager import BinanceCache
 from binance_trade_bot.config import Config
 from binance_trade_bot.database import Database
 from binance_trade_bot.logger import Logger
-from binance_trade_bot.ratios import CoinStub
 from binance_trade_bot.strategies.default_strategy import Strategy
 
-from .common import infra, dmlc
 
 @pytest.fixture(scope='function')
 def DoUserConfig():
@@ -56,9 +52,9 @@ def DoUserConfig():
 
     yield
 
+
 @pytest.fixture()
 def mmbm():
-
     logger: Logger = Logger(logging_service="guliguli")
     config: Config = Config()
     sqlite_cache = SqliteDict("data/testtest_cache.db")
@@ -69,11 +65,11 @@ def mmbm():
 
     start_date: datetime = datetime.datetime(2021, 6, 1)
     start_balances: Dict[str, float] = dict()
-    start_balances['XLM']  = 100
+    start_balances['XLM'] = 100
     start_balances['DOGE'] = 101
-    start_balances['BTT']  = 102
-    start_balances['BAD']  = 103
-    start_balances['USDT']  = 1000
+    start_balances['BTT'] = 102
+    start_balances['BAD'] = 103
+    start_balances['USDT'] = 1000
 
     manager = MockBinanceManager(
         Client(config.BINANCE_API_KEY, config.BINANCE_API_SECRET_KEY, tld=config.BINANCE_TLD),
@@ -88,9 +84,10 @@ def mmbm():
 
     yield db, manager, logger, config
 
-    #manager.close()
-    #db.close()
+    # manager.close()
+    # db.close()
     sqlite_cache.close()
+
 
 class TestStrategy:
 
@@ -100,7 +97,6 @@ class TestStrategy:
         trade = Strategy(manager, db, logger, config)
         trade.initialize()
         assert True
-
 
     def test_scout(self, DoUserConfig, mmbm):
         # test on run

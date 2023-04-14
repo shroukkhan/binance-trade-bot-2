@@ -1,21 +1,18 @@
+import datetime
+import os
+from typing import Dict
+
 import pytest
-
-import os, datetime
-from typing import Dict, List
-
 from binance.client import Client
 from sqlitedict import SqliteDict
 
 from binance_trade_bot.auto_trader import AutoTrader
 from binance_trade_bot.backtest import MockBinanceManager
-
 from binance_trade_bot.binance_stream_manager import BinanceCache
 from binance_trade_bot.config import Config
 from binance_trade_bot.database import Database
 from binance_trade_bot.logger import Logger
 from binance_trade_bot.ratios import CoinStub
-
-from .common import infra, dmlc
 
 
 @pytest.fixture(scope='function')
@@ -39,7 +36,7 @@ def DoUserConfig():
     # os.environ['CURRENT_COIN'] = 'ETH'
     os.environ['CURRENT_COIN_SYMBOL'] = 'ETH'
 
-    os.environ['API_KEY'] = 'vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A'
+    os.environ['API_KEY'] = 'vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A' # masa put his own key??? 
     os.environ['API_SECRET_KEY'] = 'NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j'
 
     # os.environ['CURRENT_COIN_SYMBOL'] = 'BTT'
@@ -56,9 +53,9 @@ def DoUserConfig():
 
     yield
 
+
 @pytest.fixture()
 def mmbm():
-
     logger: Logger = Logger(logging_service="guliguli")
     config: Config = Config()
     sqlite_cache = SqliteDict("data/testtest_cache.db")
@@ -69,11 +66,12 @@ def mmbm():
 
     start_date: datetime = datetime.datetime(2021, 6, 1)
     start_balances: Dict[str, float] = dict()
-    #start_balances['BAD']  = None
-    #start_balances['BAD'] = 10300000
+    # start_balances['BAD']  = None
+    # start_balances['BAD'] = 10300000
     start_balances['XLM'] = 100
     start_balances['DOGE'] = 101
     start_balances['BTT'] = 102
+    start_balances['ADA'] = 123
     start_balances['USDT'] = 1000
 
     manager = MockBinanceManager(
@@ -89,13 +87,15 @@ def mmbm():
 
     yield db, manager, logger, config
 
-    #manager.close()
-    #db.close()
+    # manager.close()
+    # db.close()
     sqlite_cache.close()
 
-class StubAutoTrader(AutoTrader) :
+
+class StubAutoTrader(AutoTrader):
     def scout(self):
         return
+
 
 class TestAutoTrader:
 
@@ -117,13 +117,13 @@ class TestAutoTrader:
         cointo = CoinStub.get_by_symbol('EOS')
 
         sell_price = autotrader.manager.get_ticker_price('XLMUSDT')
-        buy_price  = autotrader.manager.get_ticker_price('EOSUSDT')
+        buy_price = autotrader.manager.get_ticker_price('EOSUSDT')
 
         autotrader.transaction_through_bridge(coinfrom, cointo, sell_price, buy_price)
         assert True
 
     # TODO: Check set matrix + breaks
-    @pytest.mark.parametrize("coin_symbol",['XLM', 'DOGE'])
+    @pytest.mark.parametrize("coin_symbol", ['XLM', 'DOGE'])
     def test_update_trade_threshold(self, DoUserConfig, mmbm, coin_symbol):
 
         # test on run
@@ -150,8 +150,8 @@ class TestAutoTrader:
         print(f'_wallet {res}')
         assert True
 
-        #bridge_balance = autotrader.manager.get_currency_balance(autotrade.config.BRIDGE.symbol)
-        #assert res == bridge_balance
+        # bridge_balance = autotrader.manager.get_currency_balance(autotrade.config.BRIDGE.symbol)
+        # assert res == bridge_balance
 
     def test_initialize_trade_thresholds(self, DoUserConfig, mmbm):
 
@@ -171,7 +171,7 @@ class TestAutoTrader:
         autotrader.scout()
         assert True
 
-    @pytest.mark.parametrize("coin_symbol",['XLM', 'DOGE'])
+    @pytest.mark.parametrize("coin_symbol", ['XLM', 'DOGE'])
     def test__get_ratios(self, DoUserConfig, mmbm, coin_symbol):
         # test on run
         db, manager, logger, config = mmbm
@@ -180,7 +180,7 @@ class TestAutoTrader:
         autotrader = StubAutoTrader(manager, db, logger, config)
 
         ratio_dict, price_amounts = autotrader._get_ratios(coin, 100, 100)
-        #print('\n_get_ratios:', ratio_dict, '\n', price_amounts)
+        # print('\n_get_ratios:', ratio_dict, '\n', price_amounts)
         assert True
 
         # test on calculation. Calculate on first free coin (to_coin).
@@ -196,11 +196,11 @@ class TestAutoTrader:
         ratio = (autotrader.db.ratios_manager.get_from_coin(coin.idx))[to_coin.idx]  # 1 element from <coin> array
 
         ratio_dict_to_coin = ratio_dict[(coin.idx, to_coin.idx)]  # 1 element from <coin> array
-        price_amounts_to_coin = price_amounts[to_coin.symbol]     # 1 element from <coin> array
+        price_amounts_to_coin = price_amounts[to_coin.symbol]  # 1 element from <coin> array
 
         optional_coin_buy_price, optional_coin_amount = autotrader.manager.get_market_buy_price(
-                              to_coin.symbol + autotrader.config.BRIDGE.symbol,
-                              quote_amount)
+            to_coin.symbol + autotrader.config.BRIDGE.symbol,
+            quote_amount)
         assert optional_coin_buy_price == price_amounts_to_coin[0]
         assert optional_coin_amount == price_amounts_to_coin[1]
 
@@ -213,7 +213,7 @@ class TestAutoTrader:
         assert (coin_opt_coin_ratio - transaction_fee *
                 autotrader.config.SCOUT_MULTIPLIER * coin_opt_coin_ratio) - ratio == ratio_dict_to_coin
 
-    @pytest.mark.parametrize("coin_symbol",['XLM', 'DOGE'])
+    @pytest.mark.parametrize("coin_symbol", ['XLM', 'DOGE'])
     def test__jump_to_best_coin(self, DoUserConfig, mmbm, coin_symbol):
         # test on run
         db, manager, logger, config = mmbm
@@ -232,7 +232,8 @@ class TestAutoTrader:
 
         autotrader = StubAutoTrader(manager, db, logger, config)
 
-        pusher = []; pusher.append(autotrader.manager.balances[autotrader.config.BRIDGE.symbol])
+        pusher = [];
+        pusher.append(autotrader.manager.balances[autotrader.config.BRIDGE.symbol])
 
         autotrader.manager.balances[autotrader.config.BRIDGE.symbol] = -1
         res = autotrader.bridge_scout()
@@ -240,7 +241,7 @@ class TestAutoTrader:
 
         autotrader.manager.balances[autotrader.config.BRIDGE.symbol] = pusher.pop()
 
-        if 0: # Why v<0? v<0 always.
+        if 0:  # Why v<0? v<0 always.
 
             pricer = {}
 
@@ -250,10 +251,11 @@ class TestAutoTrader:
                 if coin.symbol not in autotrader.manager.balances.keys():
                     continue
                 if (autotrader.manager.balances[coin.symbol] > 0.0) and (coin != autotrader.config.BRIDGE):
-                    current_coin_price = autotrader.manager.get_ticker_price(coin.symbol + autotrader.config.BRIDGE.symbol)
+                    current_coin_price = autotrader.manager.get_ticker_price(
+                        coin.symbol + autotrader.config.BRIDGE.symbol)
                     pricer[coin.symbol] = current_coin_price
                     min_notional = autotrader.manager.get_min_notional(coin.symbol, autotrader.config.BRIDGE.symbol)
-                    print('\n',coin, min_notional)
+                    print('\n', coin, min_notional)
                     ratio_dict, _ = autotrader._get_ratios(coin, current_coin_price, bridge_balance)
                     print([v > 0.0 for v in ratio_dict.values()])
                     print(coin, current_coin_price, bridge_balance, ratio_dict)

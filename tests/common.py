@@ -21,7 +21,7 @@ def rm_rf(paths: List[pathlib.Path]):
 
 @pytest.fixture(autouse=True)
 def infra(delete_ok=False, delete_ok_first=False, dirs=None):
-    dirs = [pathlib.Path(directory) for directory in dirs or ["logs", "data"]]
+    dirs = [pathlib.Path(directory) for directory in dirs or ["logs", "data", "config"]]
 
     if delete_ok_first:
         rm_rf(dirs)
@@ -51,6 +51,7 @@ def dmlc():
     start_balances["DOGE"] = 101
     start_balances["BTT"] = 102
     start_balances["BAD"] = 103
+    start_balances["ADA"] = 123
     start_balances["USDT"] = 1000
 
     manager = MockBinanceManager(
