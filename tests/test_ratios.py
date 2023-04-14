@@ -17,6 +17,15 @@ def coins_stubs() -> List[CoinStub]:
 @pytest.fixture
 def ratios(coins_stubs: List[CoinStub]) -> List[Pair]:
     coins = [Coin(stub.symbol, True) for stub in coins_stubs]
+    '''
+    Without list comprehension:
+    results = []
+    for coin_from in coins:
+        for coin_to in coins:
+            if coin_from is not coin_to:
+                results.append(Pair(coin_from, coin_to, random.random()))
+    return results            
+    '''
     return [
         Pair(coin_from, coin_to, random.random())
         for coin_from in coins
