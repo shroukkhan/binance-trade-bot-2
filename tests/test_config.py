@@ -4,7 +4,6 @@ from binance_trade_bot.config import Config
 
 
 def config_test():
-
     params = dict()
 
     params["CURRENT_COIN"] = "ETH"
@@ -16,7 +15,6 @@ def config_test():
     params["API_KEY"] = "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A"
     params["API_SECRET_KEY"] = "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j"
 
-    params["SCOUT_MULTIPLIER"] = "5"
     params["SCOUT_SLEEP_TIME"] = "1"
 
     params["TLD"] = "com"
@@ -37,6 +35,16 @@ def do_user_config_env(monkeypatch):
     params = config_test()
     for key, val in params.items():
         monkeypatch.setenv(key, val)
+
+
+def test_config_no_supported_coin_list_in_env(do_user_config_env, monkeypatch):
+    monkeypatch.delenv("SUPPORTED_COIN_LIST")
+    config = Config()
+    assert len(config.SUPPORTED_COIN_LIST) > 0, "SUPPORTED_COIN_LIST should not be empty"
+    # read supported coin list from file into a list
+    with open("supported_coin_list", "r") as f:
+        supported_coin_list = f.read().splitlines()
+    assert config.SUPPORTED_COIN_LIST == supported_coin_list, "SUPPORTED_COIN_LIST should be read from file"
 
 
 def test_config_on_run(do_user_config_env):
@@ -60,8 +68,6 @@ def test_config_on_run(do_user_config_env):
 
         if ikey == "SUPPORTED_COIN_LIST":
             getvalue = " ".join(getvalue)
-        if ikey == "SCOUT_MULTIPLIER":
-            mustvalue = float(mustvalue)
         if ikey == "SCOUT_SLEEP_TIME":
             mustvalue = int(mustvalue)
 
@@ -77,5 +83,5 @@ def test_config_on_run(do_user_config_env):
             continue  # probably compute field from BRIDGE_SYMBOL
 
         assert (
-            mustvalue == getvalue
+                mustvalue == getvalue
         ), f"Config values and input values not compare for {ikey}, must be {mustvalue}, get {getvalue}"

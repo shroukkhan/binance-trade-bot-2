@@ -1,17 +1,15 @@
+import datetime
+import os
+
 import pytest
-
-import os, datetime
-
 from sqlalchemy.orm import Session
 
+from binance_trade_bot.config import Config
 from binance_trade_bot.database import Database, TradeLog
 from binance_trade_bot.logger import Logger
-from binance_trade_bot.config import Config
 from binance_trade_bot.models.coin import Coin
-from binance_trade_bot.models.pair import Pair
 from binance_trade_bot.models.coin_value import CoinValue
-
-from .common import infra
+from binance_trade_bot.models.pair import Pair
 
 
 @pytest.fixture(scope='class', autouse=True)
@@ -22,7 +20,6 @@ def DoUserConfig():
     BRIDGE_SYMBOL: USDT
     API_KEY: vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A
     API_SECRET_KEY: NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j
-    SCOUT_MULTIPLIER: 5
     SCOUT_SLEEP_TIME: 1
     TLD: com
     STRATEGY: default
@@ -40,7 +37,6 @@ def DoUserConfig():
     # os.environ['CURRENT_COIN_SYMBOL'] = 'BTT'
     os.environ['SUPPORTED_COIN_LIST'] = "XLM TRX ICX EOS IOTA ONT QTUM ETC ADA XMR DASH NEO ATOM DOGE VET BAT OMG BTT"
     os.environ['BRIDGE_SYMBOL'] = "USDT"
-    os.environ['SCOUT_MULTIPLIER'] = "5"
     os.environ['SCOUT_SLEEP_TIME'] = "1"
     os.environ['TLD'] = 'com'
     os.environ['STRATEGY'] = 'default'
@@ -54,17 +50,19 @@ def DoUserConfig():
 
 class TestDatabase:
 
-    @pytest.mark.xfail
-    def test_socketio_connect(self):
-        # test on run
-        logger = Logger("db_testing", enable_notifications=False)
-        config = Config()
-
-        dbtest = Database(logger, config)
-        dbtest.create_database()
-
-        result: bool = dbtest.socketio_connect()
-        assert result
+    # this following test does not make any sense! why do we need to connect to api ? its
+    # not a test for database
+    # @pytest.mark.xfail
+    # def test_socketio_connect(self):
+    #     # test on run
+    #     logger = Logger("db_testing", enable_notifications=False)
+    #     config = Config()
+    # 
+    #     dbtest = Database(logger, config)
+    #     dbtest.create_database()
+    # 
+    #     result: bool = dbtest.socketio_connect()
+    #     assert result
 
     def test_db_session(self):
         # test on run
@@ -111,14 +109,14 @@ class TestDatabase:
         dbtest.set_coins([])
         listCoins = dbtest.get_coins(only_enabled=True)
         for ii in listCoins:
-            assert (ii.symbol in config.SUPPORTED_COIN_LIST) or (ii.symbol == 'BAD'), "No matched "+ii.symbol
+            assert (ii.symbol in config.SUPPORTED_COIN_LIST) or (ii.symbol == 'BAD'), "No matched " + ii.symbol
         assert len(listCoins) == 0, "Not matched size"
 
         # testing not empty
         dbtest.set_coins(config.SUPPORTED_COIN_LIST)
         listCoins = dbtest.get_coins(only_enabled=True)
         for ii in listCoins:
-            assert (ii.symbol in config.SUPPORTED_COIN_LIST) or ('BAD' == ii.symbol), "No matched "+ii.symbol
+            assert (ii.symbol in config.SUPPORTED_COIN_LIST) or ('BAD' == ii.symbol), "No matched " + ii.symbol
         assert len(listCoins) == len(config.SUPPORTED_COIN_LIST), "Not matched size"
 
     @pytest.mark.parametrize('coins,counts', [([], 0), (['BAD'], 0), (['DOGE'], 0), (['ATR', 'XRL'], 0)])
@@ -130,13 +128,13 @@ class TestDatabase:
         dbtest = Database(logger, config)
         dbtest.create_database()
 
-        fullres = dbtest.get_coins(False); fullres = [ii.symbol for ii in fullres]
         dbtest.set_coins(coins)
-
+        fullres = dbtest.get_coins(only_enabled=False)
+        fullres = [ii.symbol for ii in fullres]
+       
         listCoins = dbtest.get_coins(only_enabled=False)
-
         for ii in listCoins:
-            assert ii.symbol in fullres, "Not found: "+ii.symbol
+            assert ii.symbol in fullres, "Not found: " + ii.symbol
         assert len(listCoins) == len(fullres), f"Not matched size"
 
     @pytest.mark.parametrize('coins,counts', [([], 0), (['BAD'], 1), (['DOGE'], 1), (['ATR', 'XRL'], 2)])
@@ -148,13 +146,14 @@ class TestDatabase:
         dbtest = Database(logger, config)
         dbtest.create_database()
 
-        fullres = dbtest.get_coins(False); fullres = [ii.symbol for ii in fullres]
+        fullres = dbtest.get_coins(False);
+        fullres = [ii.symbol for ii in fullres]
         dbtest.set_coins(coins)
 
         listCoins = dbtest.get_coins(only_enabled=True)
 
         for ii in listCoins:
-            assert ii.symbol in coins, "Not found: "+ii.symbol
+            assert ii.symbol in coins, "Not found: " + ii.symbol
         assert len(listCoins) == counts, f"Not matched size"
 
     def test_get_coin(self):
@@ -226,7 +225,7 @@ class TestDatabase:
         dbtest.set_coins(config.SUPPORTED_COIN_LIST)
 
         pair = dbtest.get_pair(from_coin, to_coin)
-        assert isinstance(pair,Pair)
+        assert isinstance(pair, Pair)
 
     @pytest.mark.skip
     def test_batch_log_scout(self):
@@ -336,7 +335,7 @@ class TestTradeLog:
         dbtest.create_database()
         dbtest.set_coins(config.SUPPORTED_COIN_LIST)
 
-        trade  = TradeLog(dbtest, 'XMR', 'DOGE', False)
+        trade = TradeLog(dbtest, 'XMR', 'DOGE', False)
         trade.set_ordered(110.0, 30.0, 60)
         trade.set_complete(20.0)
 
@@ -350,7 +349,7 @@ class TestTradeLog:
         dbtest.create_database()
         dbtest.set_coins(config.SUPPORTED_COIN_LIST)
 
-        trade  = TradeLog(dbtest, 'XMR', 'DOGE', True)
+        trade = TradeLog(dbtest, 'XMR', 'DOGE', True)
         trade.set_ordered(110.0, 30.0, 60)
         trade.set_complete(20.0)
 

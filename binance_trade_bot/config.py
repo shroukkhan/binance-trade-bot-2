@@ -14,7 +14,6 @@ class Config:  # pylint: disable=too-few-public-methods,too-many-instance-attrib
         config["DEFAULT"] = {
             "bridge": "USDT",
             "use_margin": "true",
-            "scout_multiplier": "5",
             "scout_margin": "0.8",
             "scout_sleep_time": "1",
             "hourToKeepScoutHistory": "1",
@@ -37,10 +36,6 @@ class Config:  # pylint: disable=too-few-public-methods,too-many-instance-attrib
             os.environ.get("HOURS_TO_KEEP_SCOUTING_HISTORY") or config.get(USER_CFG_SECTION, "hourToKeepScoutHistory")
         )
 
-        # Get config for scout
-        self.SCOUT_MULTIPLIER = float(
-            os.environ.get("SCOUT_MULTIPLIER") or config.get(USER_CFG_SECTION, "scout_multiplier")
-        )
         self.SCOUT_SLEEP_TIME = int(
             os.environ.get("SCOUT_SLEEP_TIME") or config.get(USER_CFG_SECTION, "scout_sleep_time")
         )

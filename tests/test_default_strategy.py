@@ -22,7 +22,6 @@ def DoUserConfig():
     BRIDGE_SYMBOL: USDT
     API_KEY: vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A
     API_SECRET_KEY: NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j
-    SCOUT_MULTIPLIER: 5
     SCOUT_SLEEP_TIME: 1
     TLD: com
     STRATEGY: default
@@ -41,7 +40,6 @@ def DoUserConfig():
     # os.environ['CURRENT_COIN_SYMBOL'] = 'BTT'
     os.environ['SUPPORTED_COIN_LIST'] = "XLM TRX ICX EOS IOTA ONT QTUM ETC ADA XMR DASH NEO ATOM DOGE VET BAT OMG BTT"
     os.environ['BRIDGE_SYMBOL'] = "USDT"
-    os.environ['SCOUT_MULTIPLIER'] = "5"
     os.environ['SCOUT_SLEEP_TIME'] = "1"
     os.environ['TLD'] = 'com'
     os.environ['STRATEGY'] = 'default'
