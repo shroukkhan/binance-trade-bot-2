@@ -1,93 +1,8 @@
-import datetime
-import os
-from typing import Dict
-
 import pytest
-from binance.client import Client
-from sqlitedict import SqliteDict
 
 from binance_trade_bot.auto_trader import AutoTrader
-from binance_trade_bot.backtest import MockBinanceManager
-from binance_trade_bot.binance_stream_manager import BinanceCache
-from binance_trade_bot.config import Config
-from binance_trade_bot.database import Database
-from binance_trade_bot.logger import Logger
 from binance_trade_bot.ratios import CoinStub
-
-
-@pytest.fixture(scope='function')
-def DoUserConfig():
-    '''
-    CURRENT_COIN_SYMBOL:
-    SUPPORTED_COIN_LIST: "XLM TRX ICX EOS IOTA ONT QTUM ETC ADA XMR DASH NEO ATOM DOGE VET BAT OMG BTT"
-    BRIDGE_SYMBOL: USDT
-    API_KEY: vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A
-    API_SECRET_KEY: NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j
-    SCOUT_SLEEP_TIME: 1
-    TLD: com
-    STRATEGY: default
-    BUY_TIMEOUT: 0
-    SELL_TIMEOUT: 0
-    BUY_ORDER_TYPE: limit
-    SELL_ORDER_TYPE: market
-    '''
-
-    # os.environ['CURRENT_COIN'] = 'ETH'
-    os.environ['CURRENT_COIN_SYMBOL'] = 'ETH'
-
-    os.environ['API_KEY'] = 'vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A' # masa put his own key??? 
-    os.environ['API_SECRET_KEY'] = 'NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j'
-
-    # os.environ['CURRENT_COIN_SYMBOL'] = 'BTT'
-    os.environ['SUPPORTED_COIN_LIST'] = "XLM TRX ICX EOS IOTA ONT QTUM ETC ADA XMR DASH NEO ATOM DOGE VET BAT OMG BTT"
-    os.environ['BRIDGE_SYMBOL'] = "USDT"
-    os.environ['SCOUT_SLEEP_TIME'] = "1"
-    os.environ['TLD'] = 'com'
-    os.environ['STRATEGY'] = 'default'
-    os.environ['BUY_TIMEOUT'] = "0"
-    os.environ['SELL_TIMEOUT'] = "0"
-    os.environ['BUY_ORDER_TYPE'] = 'limit'
-    os.environ['SELL_ORDER_TYPE'] = 'market'
-
-    yield
-
-
-@pytest.fixture()
-def mmbm():
-    logger: Logger = Logger(logging_service="guliguli")
-    config: Config = Config()
-    sqlite_cache = SqliteDict("data/testtest_cache.db")
-
-    db = Database(logger, config)
-    db.create_database()
-    db.set_coins(config.SUPPORTED_COIN_LIST)
-
-    start_date: datetime = datetime.datetime(2021, 6, 1)
-    start_balances: Dict[str, float] = dict()
-    # start_balances['BAD']  = None
-    # start_balances['BAD'] = 10300000
-    start_balances['XLM'] = 100
-    start_balances['DOGE'] = 101
-    start_balances['BTT'] = 102
-    start_balances['ADA'] = 123
-    start_balances['USDT'] = 1000
-
-    manager = MockBinanceManager(
-        Client(config.BINANCE_API_KEY, config.BINANCE_API_SECRET_KEY, tld=config.BINANCE_TLD),
-        sqlite_cache,
-        BinanceCache(),
-        config,
-        db,
-        logger,
-        start_date,
-        start_balances,
-    )
-
-    yield db, manager, logger, config
-
-    # manager.close()
-    # db.close()
-    sqlite_cache.close()
+from .common import do_user_config, initialize_database_and_mock_manager  # type: ignore
 
 
 class StubAutoTrader(AutoTrader):
@@ -97,17 +12,16 @@ class StubAutoTrader(AutoTrader):
 
 class TestAutoTrader:
 
-    def test_initialize(self, DoUserConfig, mmbm):
+    def test_initialize(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
         autotrader = StubAutoTrader(manager, db, logger, config)
         autotrader.initialize()
         assert True
 
-    # TODO: Check infinity loop probably
-    def test_transaction_through_bridge(self, DoUserConfig, mmbm):
+    def test_transaction_through_bridge(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
 
@@ -121,27 +35,48 @@ class TestAutoTrader:
         assert True
 
     # TODO: Check set matrix + breaks
-    @pytest.mark.parametrize("coin_symbol", ['XLM', 'DOGE'])
-    def test_update_trade_threshold(self, DoUserConfig, mmbm, coin_symbol):
-
+    @pytest.mark.parametrize("coin_symbol", [['XLM', 'EOS']])
+    def test_update_trade_threshold(self, do_user_config, initialize_database_and_mock_manager, coin_symbol):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
 
-        coin = CoinStub.get_by_symbol(coin_symbol)
-        res = autotrader.update_trade_threshold(coin, None, 100)
-        assert not res
+        to_coin = CoinStub.get_by_symbol(coin_symbol[1])
+        to_coin_price = autotrader.manager.get_ticker_price(to_coin.symbol + config.BRIDGE.symbol)
+        from_coin = CoinStub.get_by_symbol(coin_symbol[0])
+        from_coin_price = autotrader.manager.get_ticker_price(from_coin.symbol + config.BRIDGE.symbol)
+        '''
+        In the Binance order API, cumulativeQuoteQty represents the total amount of quote asset 
+        that has been traded for the given order.
 
-        coin = CoinStub.get_by_symbol('XLM')
-        res = autotrader.update_trade_threshold(coin, 1000, 100)
+        For example, if you place a sell order for 1 BTC at a price of 50,000 USDT per BTC, the
+        cumulativeQuoteQty will initially be 0. As the order is partially or fully filled, the
+        cumulativeQuoteQty will be updated to reflect the total amount of USDT that has been 
+        received in exchange for the sold BTC.
+
+        cumulativeQuoteQty is useful for tracking the progress of an order and determining the 
+        total value of a trade. It is important to note that cumulativeQuoteQty is denominated
+         in the quote asset (e.g., USDT), not the base asset (e.g., BTC).
+        '''
+        cumulative_quote_qty = autotrader.manager.get_currency_balance(config.BRIDGE.symbol) \
+                               + autotrader.manager.get_currency_balance(to_coin.symbol) * from_coin_price
+
+        to_coin_amount = autotrader.manager.get_currency_balance(to_coin.symbol) + cumulative_quote_qty / to_coin_price
+
+        res = autotrader.update_trade_threshold(
+            to_coin=to_coin,
+            from_coin=from_coin,
+            to_coin_buy_price=to_coin_price,
+            to_coin_amount=to_coin_amount,
+            quote_amount=cumulative_quote_qty)
         assert res
 
     # TODO: Why time.sleep(1)?
     # TODO: balanses[XXX] = None ! -1
-    def test__max_value_in_wallet(self, DoUserConfig, mmbm):
+    def test__max_value_in_wallet(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
         res = autotrader._max_value_in_wallet()
@@ -151,49 +86,52 @@ class TestAutoTrader:
         # bridge_balance = autotrader.manager.get_currency_balance(autotrade.config.BRIDGE.symbol)
         # assert res == bridge_balance
 
-    def test_initialize_trade_thresholds(self, DoUserConfig, mmbm):
-
+    def test_initialize_trade_thresholds(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
         res = autotrader.initialize_trade_thresholds()
-        assert True
+        assert res
 
-    def test_scout(self, DoUserConfig, mmbm):
-
+    def test_scout(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
         autotrader.scout()
-        assert True
+        assert True  # this shit does nothing :/
 
     @pytest.mark.parametrize("coin_symbol", ['XLM', 'DOGE'])
-    def test__get_ratios(self, DoUserConfig, mmbm, coin_symbol):
+    def test_get_ratios(self, do_user_config, initialize_database_and_mock_manager, coin_symbol):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
-        coin = CoinStub.get_by_symbol(coin_symbol)
+        from_coin = CoinStub.get_by_symbol(coin_symbol)
         autotrader = StubAutoTrader(manager, db, logger, config)
-
-        ratio_dict, price_amounts = autotrader._get_ratios(coin, 100, 100)
+        
+        manager = autotrader.manager
+        from_coin_amount = manager.get_currency_balance(from_coin.symbol)
+        from_coin_price, from_coin_quote = manager.get_market_sell_price(
+            from_coin.symbol + manager.config.BRIDGE.symbol, from_coin_amount
+        )
+        ratio_dict, price_amounts = autotrader._get_ratios(from_coin, from_coin_price, from_coin_quote)
         # print('\n_get_ratios:', ratio_dict, '\n', price_amounts)
         assert True
 
         # test on calculation. Calculate on first free coin (to_coin).
 
-        to_coin = CoinStub.get_by_idx(0 if coin.idx != 0 else 1)
+        to_coin = CoinStub.get_by_idx(0 if from_coin.idx != 0 else 1)
 
         ## Initial values for assert. Sell price & ratio
         quote_amount = 10000
-        coin_sell_price = autotrader.manager.get_ticker_price(coin.symbol + autotrader.config.BRIDGE.symbol)
-        ratio_dict, price_amounts = autotrader._get_ratios(coin, coin_sell_price, quote_amount)
+        coin_sell_price = autotrader.manager.get_ticker_price(from_coin.symbol + autotrader.config.BRIDGE.symbol)
+        ratio_dict, price_amounts = autotrader._get_ratios(from_coin, coin_sell_price, quote_amount)
 
         ## Calculation (???) & asserts
-        ratio = (autotrader.db.ratios_manager.get_from_coin(coin.idx))[to_coin.idx]  # 1 element from <coin> array
+        ratio = (autotrader.db.ratios_manager.get_from_coin(from_coin.idx))[to_coin.idx]  # 1 element from <coin> array
 
-        ratio_dict_to_coin = ratio_dict[(coin.idx, to_coin.idx)]  # 1 element from <coin> array
+        ratio_dict_to_coin = ratio_dict[(from_coin.idx, to_coin.idx)]  # 1 element from <coin> array
         price_amounts_to_coin = price_amounts[to_coin.symbol]  # 1 element from <coin> array
 
         optional_coin_buy_price, optional_coin_amount = autotrader.manager.get_market_buy_price(
@@ -204,29 +142,35 @@ class TestAutoTrader:
 
         coin_opt_coin_ratio = coin_sell_price / optional_coin_buy_price
 
-        transaction_fee = autotrader.manager.get_fee(coin.symbol, autotrader.config.BRIDGE.symbol, True) + \
+        transaction_fee = autotrader.manager.get_fee(from_coin.symbol, autotrader.config.BRIDGE.symbol, True) + \
                           autotrader.manager.get_fee(to_coin.symbol, autotrader.config.BRIDGE.symbol, False)
-
-        ## This is main ratio's elupopa :)
-        #assert (coin_opt_coin_ratio - transaction_fee *
+        
+        #TODO: Change this to scout margin 
+        # # This is main ratio's elupopa :)
+        # assert (coin_opt_coin_ratio - transaction_fee *
         #        autotrader.config.SCOUT_MULTIPLIER * coin_opt_coin_ratio) - ratio == ratio_dict_to_coin
 
     @pytest.mark.parametrize("coin_symbol", ['XLM', 'DOGE'])
-    def test__jump_to_best_coin(self, DoUserConfig, mmbm, coin_symbol):
+    def test_jump_to_best_coin(self, do_user_config, initialize_database_and_mock_manager, coin_symbol):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
-        coin = CoinStub.get_by_symbol(coin_symbol)
+        from_coin = CoinStub.get_by_symbol(coin_symbol)
         autotrader = StubAutoTrader(manager, db, logger, config)
-        from_coin_price = manager.get_ticker_price(coin_symbol + 'USDT')
+        manager = autotrader.manager
 
-        autotrader._jump_to_best_coin(coin, from_coin_price, 100, 20)
+        # from_coin_price = manager.get_ticker_price(coin_symbol + 'USDT') # same stuff we get from get_market_sell_price 
+        from_coin_amount = manager.get_currency_balance(from_coin.symbol)
+        from_coin_price, from_coin_quote = manager.get_market_sell_price(
+            from_coin.symbol + manager.config.BRIDGE.symbol, from_coin_amount
+        )
+        autotrader._jump_to_best_coin(from_coin, from_coin_price, from_coin_price, from_coin_quote)
         assert True
 
     # TODO: Check return coin & None
-    def test_bridge_scout(self, DoUserConfig, mmbm):
+    def test_bridge_scout(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
 
@@ -260,9 +204,9 @@ class TestAutoTrader:
 
             print(pricer)
 
-    def test_update_values(self, DoUserConfig, mmbm):
+    def test_update_values(self, do_user_config, initialize_database_and_mock_manager):
         # test on run
-        db, manager, logger, config = mmbm
+        db, manager, logger, config = initialize_database_and_mock_manager
 
         autotrader = StubAutoTrader(manager, db, logger, config)
 

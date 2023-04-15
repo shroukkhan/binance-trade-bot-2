@@ -155,7 +155,7 @@ class AutoTrader(ABC):
                 from_coin_idx = CoinStub.get_by_symbol(from_coin_symbol).idx
                 self.logger.info(f"Initializing {from_coin_symbol} vs [{', '.join([p.to_coin.symbol for p in group])}]")
                 for pair in group:
-                    for _ in range(10):
+                    for _ in range(10): # basically retrying 10 times to get the price
                         from_coin_price, _ = self.manager.get_market_sell_price_fill_quote(
                             from_coin_symbol + self.config.BRIDGE.symbol, max_quote_amount
                         )
@@ -186,6 +186,7 @@ class AutoTrader(ABC):
                         from_coin_idx, CoinStub.get_by_symbol(pair.to_coin.symbol).idx, from_coin_price / to_coin_price
                     )
         self.db.commit_ratios()
+        return True
 
     @abstractmethod
     def scout(self):

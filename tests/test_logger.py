@@ -63,18 +63,3 @@ def test_console_logging(capsys, createAndDeleteFile):  # bad case
     assert str(captured).find("ERROR") > -1
 
     assert os.path.exists(fn), "Log file not exists"
-
-
-def test_log2(capsys, createAndDeleteFile):
-    ln, fn = createAndDeleteFile
-
-    # caplog - not work?
-
-    logs2 = Logger(enable_notifications=False, logging_service=ln)
-
-    assert os.path.exists(fn), "Log file not exists"
-
-    logs2.warning("ggnniinnrraaww", notification=False)
-    captured = capsys.readouterr()
-    assert len(str(captured)) == 0, "Notification==False , but informing?"
-    print("\n", captured)

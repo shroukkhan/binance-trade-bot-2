@@ -11,41 +11,7 @@ from binance_trade_bot.models.coin import Coin
 from binance_trade_bot.models.coin_value import CoinValue
 from binance_trade_bot.models.pair import Pair
 
-
-@pytest.fixture(scope='class', autouse=True)
-def DoUserConfig():
-    '''
-    CURRENT_COIN_SYMBOL:
-    SUPPORTED_COIN_LIST: "XLM TRX ICX EOS IOTA ONT QTUM ETC ADA XMR DASH NEO ATOM DOGE VET BAT OMG BTT"
-    BRIDGE_SYMBOL: USDT
-    API_KEY: vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A
-    API_SECRET_KEY: NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j
-    SCOUT_SLEEP_TIME: 1
-    TLD: com
-    STRATEGY: default
-    BUY_TIMEOUT: 0
-    SELL_TIMEOUT: 0
-    BUY_ORDER_TYPE: limit
-    SELL_ORDER_TYPE: market
-    '''
-
-    # os.environ['CURRENT_COIN'] = 'ETH'
-    os.environ['CURRENT_COIN_SYMBOL'] = 'ETH'
-
-    os.environ['API_KEY'] = 'vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A'
-    os.environ['API_SECRET_KEY'] = 'NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j'
-    # os.environ['CURRENT_COIN_SYMBOL'] = 'BTT'
-    os.environ['SUPPORTED_COIN_LIST'] = "XLM TRX ICX EOS IOTA ONT QTUM ETC ADA XMR DASH NEO ATOM DOGE VET BAT OMG BTT"
-    os.environ['BRIDGE_SYMBOL'] = "USDT"
-    os.environ['SCOUT_SLEEP_TIME'] = "1"
-    os.environ['TLD'] = 'com'
-    os.environ['STRATEGY'] = 'default'
-    os.environ['BUY_TIMEOUT'] = "0"
-    os.environ['SELL_TIMEOUT'] = "0"
-    os.environ['BUY_ORDER_TYPE'] = 'limit'
-    os.environ['SELL_ORDER_TYPE'] = 'market'
-
-    yield
+from .common import do_user_config  # type: ignore
 
 
 class TestDatabase:
