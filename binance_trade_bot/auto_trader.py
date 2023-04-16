@@ -64,12 +64,12 @@ class AutoTrader(ABC):
         return None
 
     def update_trade_threshold(
-        self,
-        to_coin: CoinStub,
-        from_coin: Optional[CoinStub],
-        to_coin_buy_price: float,
-        to_coin_amount: float,
-        quote_amount: float,
+            self,
+            to_coin: CoinStub,
+            from_coin: Optional[CoinStub],
+            to_coin_buy_price: float,
+            to_coin_amount: float,
+            quote_amount: float,
     ) -> bool:
         """
         Update all the coins with the threshold of buying the current held coin
@@ -155,7 +155,7 @@ class AutoTrader(ABC):
                 from_coin_idx = CoinStub.get_by_symbol(from_coin_symbol).idx
                 self.logger.info(f"Initializing {from_coin_symbol} vs [{', '.join([p.to_coin.symbol for p in group])}]")
                 for pair in group:
-                    for _ in range(10): # basically retrying 10 times to get the price
+                    for _ in range(10):  # basically retrying 10 times to get the price
                         from_coin_price, _ = self.manager.get_market_sell_price_fill_quote(
                             from_coin_symbol + self.config.BRIDGE.symbol, max_quote_amount
                         )
@@ -196,7 +196,7 @@ class AutoTrader(ABC):
         ...
 
     def _get_ratios(
-        self, coin: CoinStub, coin_sell_price, quote_amount, enable_scout_log=True
+            self, coin: CoinStub, coin_sell_price, quote_amount, enable_scout_log=True
     ) -> Tuple[Dict[Tuple[int, int], float], Dict[str, Tuple[float, float]]]:
         """
         Given a coin, get the current price ratio for every other enabled coin
@@ -250,7 +250,7 @@ class AutoTrader(ABC):
 
     @postpone_heavy_calls
     def _jump_to_best_coin(
-        self, coin: CoinStub, coin_sell_price: float, quote_amount: float, coin_amount: float
+            self, coin: CoinStub, coin_sell_price: float, quote_amount: float, coin_amount: float
     ):  # pylint: disable=too-many-locals
         """
         Given a coin, search for a coin to jump to
@@ -288,7 +288,7 @@ class AutoTrader(ABC):
                 if not is_initial_coin:  # update thresholds because we should buy anyway when walk through chain
                     # This should be performed in a single transaction so we don't leave our ratios in invalid state
                     if not self.update_trade_threshold(
-                        last_coin, new_best_coin, last_coin_buy_price, last_coin_amount, last_coin_quote
+                            last_coin, new_best_coin, last_coin_buy_price, last_coin_amount, last_coin_quote
                     ):
                         self.db.ratios_manager.rollback()
                         return
@@ -314,7 +314,7 @@ class AutoTrader(ABC):
                 self.logger.info(
                     f"Expected: {expected_bought_quantity_no_fees:0.08f}, "
                     f"Actual: {result.cumulative_filled_quantity:0.08f}, "
-                    f"Slippage: {expected_bought_quantity_no_fees/result.cumulative_filled_quantity - 1:0.06%}"
+                    f"Slippage: {expected_bought_quantity_no_fees / result.cumulative_filled_quantity - 1:0.06%}"
                 )
             else:
                 self.update_trade_threshold(coin, None, coin_sell_price, 0, quote_amount)
@@ -329,7 +329,8 @@ class AutoTrader(ABC):
 
         coins = CoinStub.get_all()
         if all(
-            bridge_balance <= self.manager.get_min_notional(coin.symbol, self.config.BRIDGE.symbol) for coin in coins
+                bridge_balance <= self.manager.get_min_notional(coin.symbol, self.config.BRIDGE.symbol) for coin in
+                coins
         ):
             return None
 
@@ -341,6 +342,17 @@ class AutoTrader(ABC):
 
             ratio_dict, _ = self._get_ratios(coin, current_coin_price, bridge_balance)
             if not any(v > 0 for v in ratio_dict.values()):
+                '''
+                This code checks if any value in ratio_dict is 
+                greater than zero. If all values are less than 
+                or equal to zero, the condition will be True
+                and the code block inside the if statement 
+                will be executed. 
+                
+                we are looking for a negative value in the ratio dictionary
+                
+                It will buy the first coin and just go back :)
+                '''
                 # There will only be one coin where all the ratios are negative. When we find it, buy it if we can
                 if bridge_balance > self.manager.get_min_notional(coin.symbol, self.config.BRIDGE.symbol):
                     self.logger.info(f"Will be purchasing {coin.symbol} using bridge coin")
